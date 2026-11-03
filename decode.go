@@ -129,6 +129,7 @@ type decoder struct {
 
 var (
 	timeType          = reflect.TypeOf(time.Time{})
+	durationType      = reflect.TypeOf(time.Duration(0))
 	localDateType     = reflect.TypeOf(LocalDate{})
 	localTimeType     = reflect.TypeOf(LocalTime{})
 	localDateTimeType = reflect.TypeOf(LocalDateTime{})
@@ -188,6 +189,17 @@ func (d *decoder) value(n *node, v reflect.Value, key Key) error {
 	switch v.Type() {
 	case timeType, localDateType, localTimeType, localDateTimeType:
 		return d.datetimeValue(n, v, key)
+	case durationType:
+		// "1m30s", as time.ParseDuration reads it. An integer falls through
+		// to the integer case and counts nanoseconds, as BurntSushi did.
+		if n.kind == kString {
+			dur, err := time.ParseDuration(n.str)
+			if err != nil {
+				return d.wrap(n, key, err)
+			}
+			v.SetInt(int64(dur))
+			return nil
+		}
 	}
 
 	if v.CanAddr() && v.Addr().Type().Implements(textUnmarshaler) {

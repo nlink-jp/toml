@@ -426,6 +426,24 @@ Leap = 23:59:60
 	decodeErr(t, "V = 07:32:00\n", &d)
 }
 
+func TestDurationsReadStrings(t *testing.T) {
+	var cfg struct {
+		Timeout time.Duration
+		Nanos   time.Duration
+		Ptr     *time.Duration
+	}
+	mustDecode(t, "Timeout = '1m30s'\nNanos = 1500\nPtr = '2h'\n", &cfg)
+	if cfg.Timeout != 90*time.Second || cfg.Nanos != 1500 || cfg.Ptr == nil || *cfg.Ptr != 2*time.Hour {
+		t.Errorf("decoded %+v", cfg)
+	}
+	err := decodeErr(t, "Timeout = 'soon'\n", &cfg)
+	var de *DecodeError
+	if !errors.As(err, &de) || de.Key.String() != "Timeout" || errors.Unwrap(err) == nil {
+		t.Errorf("err = %v", err)
+	}
+	decodeErr(t, "Timeout = 1.5\n", &cfg)
+}
+
 func TestAnyReceivesPlainValues(t *testing.T) {
 	var v any
 	mustDecode(t, "s = 'x'\ni = 1\nf = 1.5\nb = true\nt = 1979-05-27T07:32:00Z\nd = 1979-05-27\na = [1, 'two']\n[tbl]\nk = 'v'\n", &v)
