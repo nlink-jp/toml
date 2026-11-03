@@ -301,7 +301,7 @@ func (d *decoder) structTable(t *table, v reflect.Value, key Key) error {
 		n := t.entries[k]
 		f, ok := fields.lookup(k)
 		if !ok {
-			d.unknownKey(key.child(k), n.off)
+			d.unknownTree(n, key.child(k))
 			continue
 		}
 		fv, err := d.fieldByIndex(v, f.index, n, key.child(k))
@@ -358,10 +358,31 @@ func (d *decoder) mapTable(n *node, v reflect.Value, key Key) error {
 	return nil
 }
 
-func (d *decoder) unknownKey(key Key, off int) {
+// unknownTree lists an unknown key and, when it holds a table or tables,
+// every key beneath it, as BurntSushi's Undecoded() did. Tools name keys they
+// have removed — `workspace.workspace_dir` under a `[workspace]` that is
+// gone — and can find them only if the key itself is listed, not just the
+// table it was in.
+func (d *decoder) unknownTree(n *node, key Key) {
 	if d.allowUnknown {
 		return
 	}
+	d.unknownKey(key, n.off)
+	switch n.kind {
+	case kTable:
+		for _, k := range n.tbl.keys {
+			d.unknownTree(n.tbl.entries[k], key.child(k))
+		}
+	case kArray:
+		for _, e := range n.arr {
+			if e.kind == kTable {
+				d.unknownTree(e, key)
+			}
+		}
+	}
+}
+
+func (d *decoder) unknownKey(key Key, off int) {
 	s := key.String()
 	if d.seen[s] {
 		return

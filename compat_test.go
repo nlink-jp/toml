@@ -69,6 +69,33 @@ func TestCompatDefaultsThenFileThenRemovedKeys(t *testing.T) {
 	}
 }
 
+// video-studio-mcp and voice-studio-mcp: a key whose whole table has been
+// removed is still found by its full name, so the tool can say it was
+// removed rather than that it is unknown.
+func TestCompatRemovedKeyUnderARemovedTable(t *testing.T) {
+	var cfg struct {
+		Server struct {
+			Port int `toml:"port"`
+		} `toml:"server"`
+	}
+	_, err := Decode("[workspace]\nworkspace_dir = 'x'\nnested.deep = 1\n[[workspace.list]]\nitem = 1\n[server]\nport = 1\n", &cfg)
+	var uk *UnknownKeysError
+	if !errors.As(err, &uk) {
+		t.Fatalf("err = %v", err)
+	}
+	var got []string
+	for _, k := range uk.Keys {
+		got = append(got, k.String())
+	}
+	want := "workspace workspace.workspace_dir workspace.nested workspace.nested.deep workspace.list workspace.list.item"
+	if strings.Join(got, " ") != want {
+		t.Errorf("unknown keys %q,\nwant %q", strings.Join(got, " "), want)
+	}
+	if cfg.Server.Port != 1 {
+		t.Error("known keys after the removed table are still decoded")
+	}
+}
+
 // task-clock: a named time.Duration with UnmarshalText on its pointer, which
 // refuses negative values.
 type namedDuration time.Duration
