@@ -6,8 +6,8 @@ A Go library, standard library only. It reads TOML documents into Go values
 and is **strict by default**: a key the target has no place for is an error,
 not silently dropped. It decodes only; there is no encoder.
 
-> **Status: in development.** The API below is the planned one and is not
-> implemented yet. See the [RFP](docs/en/toml-rfp.md).
+> **Status: in development, not yet released.** See the
+> [RFP](docs/en/toml-rfp.md).
 
 ## Install
 
@@ -15,7 +15,7 @@ not silently dropped. It decodes only; there is no encoder.
 go get github.com/nlink-jp/toml
 ```
 
-## Usage (planned)
+## Usage
 
 ```go
 import "github.com/nlink-jp/toml"
@@ -24,14 +24,27 @@ cfg := defaultConfig() // keys absent from the file keep these values
 md, err := toml.DecodeFile(path, &cfg)
 var unknown *toml.UnknownKeysError
 if errors.As(err, &unknown) {
-	// unknown.Keys lists every key the struct has no field for
+	// unknown.Keys lists every key the struct has no field for, in
+	// document order; every key it does know has been decoded
 }
 if md.IsDefined("model", "name") {
 	// the file set model.name
 }
 ```
 
-Pass `toml.AllowUnknownKeys()` to accept keys the target does not know.
+| API | What it does |
+|-----|--------------|
+| `Decode(data string, v any, opts ...Option) (MetaData, error)` | Decodes a document into `v`, a non-nil pointer, on top of what `v` holds. |
+| `DecodeFile(path string, v any, opts ...Option) (MetaData, error)` | The same for a file, read no further than 1 MiB. |
+| `AllowUnknownKeys()` | Skips keys `v` has no place for instead of failing. |
+| `MetaData.IsDefined(key ...string) bool` | Whether the document wrote a key. |
+| `LocalDateTime`, `LocalDate`, `LocalTime` | Where TOML's local datetimes go; offset date-times go into `time.Time`. |
+| `Unmarshaler` | `UnmarshalTOML(any) error`, for a key whose value may take more than one shape. |
+| `ParseError`, `DecodeError`, `UnknownKeysError`, `Key` | The three errors, all reachable with `errors.As`. |
+
+The rules — which TOML value fits which Go type, how struct fields match
+keys, and where this differs from `BurntSushi/toml` — are in
+[docs/en/decoding.md](docs/en/decoding.md).
 
 ## What it reads
 

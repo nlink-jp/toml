@@ -6,16 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
-// FuzzParse holds the parser to two properties on any input: it never
-// panics, and every failure is a *ParseError with a real position. The seeds
-// are every document in the conformance suite. Inputs the fuzzer finds land
-// in testdata/fuzz/FuzzParse and are committed as regression cases.
-//
-//	go test -run '^$' -fuzz FuzzParse -fuzztime 60s
-func FuzzParse(f *testing.F) {
+// addSuiteSeeds seeds a fuzz target with every document of the conformance
+// suite for TOML 1.1.0.
+func addSuiteSeeds(f *testing.F) {
 	list, err := os.ReadFile(filepath.Join(suiteDir, "tests", "files-toml-1.1.0"))
 	if err != nil {
 		f.Fatal(err)
@@ -30,6 +27,58 @@ func FuzzParse(f *testing.F) {
 		}
 		f.Add(string(b))
 	}
+}
+
+// FuzzDecode decodes any input into an `any` and into a struct of every kind
+// of field. It holds the decoder to never panicking, and to failing only with
+// the three error types it documents.
+//
+//	go test -run '^$' -fuzz FuzzDecode -fuzztime 60s
+func FuzzDecode(f *testing.F) {
+	addSuiteSeeds(f)
+	f.Add("a = 1\n[b]\nc = 'x'\n[[d]]\ne = 1979-05-27T07:32:00Z\n")
+	f.Add("S = 's'\nI = -1\nU = 1\nF = 1.5\nB = true\nT = 07:32\nL = [1, 2]\nM = {k = 'v'}\nP = 1\n")
+	type fuzzTarget struct {
+		S  string
+		I  int8
+		U  uint16
+		F  float32
+		B  bool
+		T  time.Time
+		LT LocalTime
+		L  []int
+		A  [2]string
+		M  map[string]any
+		P  *int
+		N  struct{ X, Y int }
+		Q  []struct{ Z string }
+	}
+	f.Fuzz(func(t *testing.T, src string) {
+		var anyV any
+		var st fuzzTarget
+		for _, v := range []any{&anyV, &st} {
+			_, err := Decode(src, v)
+			if err == nil {
+				continue
+			}
+			var pe *ParseError
+			var de *DecodeError
+			var uk *UnknownKeysError
+			if !errors.As(err, &pe) && !errors.As(err, &de) && !errors.As(err, &uk) {
+				t.Fatalf("error is %T: %v", err, err)
+			}
+		}
+	})
+}
+
+// FuzzParse holds the parser to two properties on any input: it never
+// panics, and every failure is a *ParseError with a real position. The seeds
+// are every document in the conformance suite. Inputs the fuzzer finds land
+// in testdata/fuzz/FuzzParse and are committed as regression cases.
+//
+//	go test -run '^$' -fuzz FuzzParse -fuzztime 60s
+func FuzzParse(f *testing.F) {
+	addSuiteSeeds(f)
 	f.Fuzz(func(t *testing.T, src string) {
 		root, err := parse(src)
 		if err == nil {

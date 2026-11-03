@@ -6,7 +6,7 @@ Go 標準ライブラリだけで書かれたライブラリです。TOML の文
 **既定で厳格**に読み、読み込み先に対応するフィールドがないキーは、黙って捨てずにエラーにします。
 読み込み専用で、書き出しの機能はありません。
 
-> **状態: 開発中。** 下の API は予定のもので、まだ実装されていません。
+> **状態: 開発中で、まだリリースしていません。**
 > [RFP](docs/ja/toml-rfp.ja.md) を参照してください。
 
 ## インストール
@@ -15,7 +15,7 @@ Go 標準ライブラリだけで書かれたライブラリです。TOML の文
 go get github.com/nlink-jp/toml
 ```
 
-## 使い方（予定）
+## 使い方
 
 ```go
 import "github.com/nlink-jp/toml"
@@ -24,14 +24,26 @@ cfg := defaultConfig() // ファイルに書かれていないキーはこの値
 md, err := toml.DecodeFile(path, &cfg)
 var unknown *toml.UnknownKeysError
 if errors.As(err, &unknown) {
-	// unknown.Keys に、構造体にフィールドのないキーがすべて入る
+	// unknown.Keys に、構造体にフィールドのないキーが文書の順にすべて入る。
+	// 知っているキーはすべて読み込み済み
 }
 if md.IsDefined("model", "name") {
 	// ファイルに model.name が書かれていた
 }
 ```
 
-読み込み先が知らないキーも受け付けたいときは、`toml.AllowUnknownKeys()` を渡します。
+| API | 働き |
+|-----|------|
+| `Decode(data string, v any, opts ...Option) (MetaData, error)` | 文書を `v`（nil でないポインタ）に読み込む。`v` が既に持っている値の上に重ねる。 |
+| `DecodeFile(path string, v any, opts ...Option) (MetaData, error)` | ファイルから同じことをする。1 MiB を超える分は読まない。 |
+| `AllowUnknownKeys()` | `v` に受け皿のないキーを、エラーにせず読み飛ばす。 |
+| `MetaData.IsDefined(key ...string) bool` | 文書にそのキーが書かれていたかを返す。 |
+| `LocalDateTime`、`LocalDate`、`LocalTime` | TOML のローカル日時の受け皿。オフセットつき日時は `time.Time` に入る。 |
+| `Unmarshaler` | `UnmarshalTOML(any) error`。値の形が一つに決まらないキーのためのもの。 |
+| `ParseError`、`DecodeError`、`UnknownKeysError`、`Key` | 3 種類のエラー。どれも `errors.As` で取り出せる。 |
+
+どの TOML の値がどの Go の型に入るか、構造体のフィールドとキーをどう対応させるか、`BurntSushi/toml` とどこが違うかは、
+[docs/ja/decoding.ja.md](docs/ja/decoding.ja.md) にまとめています。
 
 ## 読めるもの
 

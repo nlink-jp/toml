@@ -7,9 +7,11 @@ only. Replaces `github.com/BurntSushi/toml` across nlink-jp's Go tools. Strict
 by default (unknown keys are an error), decode only. Module path:
 `github.com/nlink-jp/toml`.
 
-Status: Phase 1 done — the parser reads TOML 1.1.0 into a tree with positions
-and passes all 681 toml-test documents for 1.1.0. Phase 2 (mapping onto Go
-values, the public API) has not started; see `docs/ja/toml-rfp.ja.md` §4.
+Status: Phases 1 and 2 done — the parser passes all 681 toml-test documents
+for 1.1.0, and Decode/DecodeFile map the tree onto Go values. Phase 3
+(ADR, release, migration of consumers) is next; see `docs/ja/toml-rfp.ja.md` §4.
+The decoding rules are `docs/en/decoding.md` — keep it in step with
+`decode.go` and `fields.go`.
 
 ## Build & Test
 
@@ -17,7 +19,8 @@ values, the public API) has not started; see `docs/ja/toml-rfp.ja.md` §4.
 make test    # go test ./... — includes the conformance suite and the data checksum
 make vet     # go vet ./...
 make build   # compiles the packages; there is no binary
-go test -run '^$' -fuzz FuzzParse -fuzztime 60s   # fuzz the parser
+go test -run '^$' -fuzz FuzzParse -fuzztime 60s    # fuzz the parser
+go test -run '^$' -fuzz FuzzDecode -fuzztime 60s   # fuzz the decoder
 ```
 
 ## Structure
@@ -25,16 +28,21 @@ go test -run '^$' -fuzz FuzzParse -fuzztime 60s   # fuzz the parser
 ```
 toml/
 ├── doc.go               # package documentation
+├── decode.go            # Decode, DecodeFile, Option, MetaData, Unmarshaler; tree → Go values
+├── fields.go            # struct field ↔ key matching (BurntSushi's rules), cached per type
+├── datetime.go          # LocalDateTime, LocalDate, LocalTime; datetime → time.Time
 ├── tree.go              # node, table, tableState: the parsed tree and how each table came to exist
 ├── parse.go             # document, headers, keys, arrays, inline tables; the definition rules; limits
 ├── scalar.go            # strings, escapes, numbers, datetimes
-├── errors.go            # ParseError, offset → line/column
+├── errors.go            # ParseError, DecodeError, UnknownKeysError, Key; offset → line/column
+├── decode_test.go       # every decoding rule
+├── compat_test.go       # the consumers' patterns (pcap-analyzer, task-clock, lagent, voice-studio)
 ├── conformance_test.go  # toml-test harness (our own) + TestTheConformanceDataIsUnchanged
 ├── parse_test.go        # decisions the suite does not cover, limits, positions
-├── fuzz_test.go         # FuzzParse, seeded with the suite
+├── fuzz_test.go         # FuzzParse and FuzzDecode, seeded with the suite
 ├── module_test.go       # TestTheModuleRequiresNothing
 ├── testdata/toml-test/  # vendored toml-test v2.2.0 data; SOURCE.md, SHA256SUMS
-└── docs/{en,ja}/        # RFP
+└── docs/{en,ja}/        # RFP, decoding rules
 ```
 
 ## Gotchas
@@ -44,6 +52,20 @@ toml/
 - **Field matching follows `BurntSushi/toml`** (tag first, then the field name
   case-insensitively; embedded structs flattened) so migration does not change
   what a config file means. This is a decision in the RFP, not an accident.
+- **Decoding goes on top of what the value holds.** Structs, set pointers and
+  map entries keep what the document does not set; slices and Go arrays are
+  replaced. Consumers rely on it (defaults first, file second), and
+  `TestMapEntriesAreDecodedOnTopOfTheirDefaults` exists because a mutation
+  that dropped the old map entry passed every other test.
+- **The order of checks in `decoder.value` matters:** pointers, then
+  `Unmarshaler`, then `any`, then the datetime types, then
+  `TextUnmarshaler`. `time.Time` is itself a `TextUnmarshaler`, so the
+  datetime case must come first.
+- **`Unmarshaler` was added in Phase 2, beyond the RFP's API,** because
+  task-clock's `CommandValue` implements `UnmarshalTOML(any)`.
+- **Unknown keys are collected, not failed on,** so one error lists them all,
+  in document order, after every known key is decoded. A `DecodeError` stops
+  decoding at once.
 - **The table rules live in `tableState`.** implicit (a header's parent) →
   may still be defined by a header or by dotted keys; header → closed to
   headers and dotted keys; dotted → open only to dotted keys of the same

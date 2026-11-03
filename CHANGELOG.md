@@ -17,3 +17,14 @@ to [Semantic Versioning](https://semver.org/).
   the document.
 - Leap seconds (second 60) are read, as RFC 3339 allows.
 - Fuzz test of the parser, seeded with the suite.
+- `Decode` and `DecodeFile`: a document onto Go values, on top of what the
+  value already holds. Unknown keys are an `UnknownKeysError` unless
+  `AllowUnknownKeys()` is given; `MetaData.IsDefined` reports what the
+  document wrote.
+- `LocalDateTime`, `LocalDate` and `LocalTime` for TOML's local datetimes;
+  offset date-times go into `time.Time`.
+- `Unmarshaler` (`UnmarshalTOML(any) error`) and `encoding.TextUnmarshaler`
+  targets.
+- `DecodeError` and `UnknownKeysError`, with `Key`.
+- Decoding rules documented in `docs/en/decoding.md` and
+  `docs/ja/decoding.ja.md`.
