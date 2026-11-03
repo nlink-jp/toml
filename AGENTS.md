@@ -55,17 +55,29 @@ toml/
 - **The conformance harness is ours, its data is theirs.** `files-toml-1.1.0`
   picks the tests; the count is pinned at 681 so a shorter list cannot pass
   silently. Values are compared by meaning (floats numerically, NaN = NaN,
-  datetimes as instants), as toml-test's README specifies.
+  datetimes as instants *and* by the offset as written — instants alone let a
+  parser that rewrote every offset as Z pass). `TestTheComparisonTellsValuesApart`
+  tests the comparison itself.
+- **Invalid documents are checked for rejection, not for the reason.** The
+  suite names no reason. The Phase 1 review read all 467 messages and found
+  none rejected for the wrong reason; a regression there would not be caught.
 - **Errors leave the descent by panic(parseFail)**, which `parse` recovers.
   Any other panic is re-raised: it is a bug, and the fuzzer must see it.
 - **Positions are offsets until an error is reported.** `position` turns one
   into a line and a character column (not bytes) only then.
-- **Limits:** 16 MiB per document; arrays/inline tables nest at most 128 deep
-  while parsing; a key has at most 128 parts; the finished tree is checked
-  (without recursion, `tooDeep`) for depth 128, because headers and dotted
-  keys add depth across lines. Decoding recurses, so the bound is what keeps
-  a hostile document from exhausting the stack.
+- **Limits:** 1 MiB per document — a node costs about 85 times the bytes that
+  wrote it (16 MiB of `0,` built a 1.3 GiB tree), so the input bound is the
+  memory bound. Arrays/inline tables nest at most 128 deep while parsing; a
+  key has at most 128 parts; the finished tree is checked (without recursion,
+  `tooDeep`) for depth 128, because headers and dotted keys add depth across
+  lines. Decoding recurses, so the bound is what keeps a hostile document from
+  exhausting the stack. `tooDeep` reports the earliest too-deep place, never
+  the first a map yields.
+- **Messages name keys from the root** (`p.path` is the current header's key);
+  inside an inline table they are named from that table. Text quoted from the
+  document goes through `clip`, so a message stays small whatever the input.
 - **Implementation choices the spec leaves open:** CRLF inside multi-line
-  strings becomes LF; a leading BOM is skipped; seconds of 60 (leap seconds)
-  are rejected; fractions beyond nanoseconds are truncated; a float that
-  overflows (`1e400`) is an error.
+  strings becomes LF; a leading BOM is skipped (and is not a column); seconds
+  of 60 (leap seconds) are read, and what they become as Go values is Phase 2's
+  decision; fractions beyond nanoseconds are truncated; a float that overflows
+  (`1e400`) is an error, one that underflows (`1e-400`) is 0.

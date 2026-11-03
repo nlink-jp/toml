@@ -12,5 +12,8 @@ to [Semantic Versioning](https://semver.org/).
 - TOML 1.1.0 parser into a tree that keeps each value's position. Passes all
   681 toml-test v2.2.0 documents for 1.1.0 (214 valid, 467 invalid), with the
   suite's data vendored and checked against its SHA256 list on every run.
-- Limits: 16 MiB per document, nesting depth 128, 128 parts per key.
+- Limits: 1 MiB per document, nesting depth 128, 128 parts per key.
+- Error messages name keys from the root and quote at most 40 characters of
+  the document.
+- Leap seconds (second 60) are read, as RFC 3339 allows.
 - Fuzz test of the parser, seeded with the suite.

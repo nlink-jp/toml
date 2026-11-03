@@ -33,6 +33,18 @@ if md.IsDefined("model", "name") {
 
 Pass `toml.AllowUnknownKeys()` to accept keys the target does not know.
 
+## What it reads
+
+- TOML 1.1.0 in full (1.0.0 documents read the same). It passes every
+  document of the [toml-test](https://github.com/toml-lang/toml-test) suite
+  for 1.1.0.
+- Documents up to 1 MiB, with tables and arrays nested at most 128 deep.
+- Errors give the line and the column (counted in characters).
+- Dotted keys may write into a table that a header only implied: after
+  `[a.b.c]`, a later `[a]` may say `b.d = 1`. The spec allows this, but some
+  other TOML implementations read it more strictly, so such a file may not
+  read elsewhere.
+
 ## Why
 
 nlink-jp ships no code written outside the organization. Its Go tools read
