@@ -297,6 +297,10 @@ func (d *decoder) array(n *node, v reflect.Value, key Key) error {
 
 func (d *decoder) structTable(t *table, v reflect.Value, key Key) error {
 	fields := fieldsOf(v.Type())
+	// TOML keys are case-sensitive, so `name` and `NAME` are two keys, but
+	// the case-insensitive match can lead both to one field. Letting the
+	// later one win would drop the other silently.
+	setBy := map[*field]string{}
 	for _, k := range t.keys {
 		n := t.entries[k]
 		f, ok := fields.lookup(k)
@@ -304,6 +308,11 @@ func (d *decoder) structTable(t *table, v reflect.Value, key Key) error {
 			d.unknownTree(n, key.child(k))
 			continue
 		}
+		if other, ok := setBy[f]; ok {
+			return d.fail(n, key.child(k), "keys %s and %s both set the field %s",
+				quoteKey(clip(other)), quoteKey(clip(k)), f.goName)
+		}
+		setBy[f] = k
 		fv, err := d.fieldByIndex(v, f.index, n, key.child(k))
 		if err != nil {
 			return err

@@ -15,6 +15,7 @@ import (
 
 type field struct {
 	name   string
+	goName string // for messages
 	index  []int
 	tagged bool
 }
@@ -85,7 +86,7 @@ func typeFields(t reflect.Type) *structFields {
 			if !tagged {
 				name = sf.Name
 			}
-			cands = append(cands, candidate{field{name, idx, tagged}, depth})
+			cands = append(cands, candidate{field{name, sf.Name, idx, tagged}, depth})
 		}
 	}
 	walk(t, nil, 0, map[reflect.Type]bool{t: true})

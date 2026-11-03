@@ -162,6 +162,24 @@ tagged.X = 1
 	}
 }
 
+// `name` and `NAME` are different TOML keys that the case-insensitive match
+// leads to one field. Neither may silently win.
+func TestTwoKeysForOneFieldAreAnError(t *testing.T) {
+	var cfg struct {
+		Name string `toml:"name"`
+	}
+	for _, src := range []string{"name = 'exact'\nNAME = 'folded'\n", "NAME = 'folded'\nname = 'exact'\n", "Name = 'a'\nnAmE = 'b'\n"} {
+		err := decodeErr(t, src, &cfg)
+		var de *DecodeError
+		if !errors.As(err, &de) || de.Line != 2 || !strings.Contains(de.Msg, "both set the field Name") {
+			t.Errorf("Decode(%q): %v", src, err)
+		}
+	}
+	// The same key in two tables of an array is two values, not a clash.
+	var list struct{ Items []struct{ Name string } }
+	mustDecode(t, "[[Items]]\nname = 'a'\n[[Items]]\nNAME = 'b'\n", &list)
+}
+
 func TestEmbeddedPointersAreCreatedWhenWritten(t *testing.T) {
 	type Base struct{ Level string }
 	var cfg struct {
