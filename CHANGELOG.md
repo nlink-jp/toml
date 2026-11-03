@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-11-03
+
+### Documentation
+
+- Reference manual in English and Japanese (`docs/en/reference.md`,
+  `docs/ja/reference.ja.md`), describing every exported name; a test fails
+  when an exported name has no section in either.
+- Runnable examples (`example_test.go`) for Decode, unknown keys,
+  AllowUnknownKeys, IsDefined, the errors, Unmarshaler and LocalDateTime.In.
+- Package and type comments corrected: DecodeError unwraps the errors of
+  UnmarshalTOML, time.Parse and time.ParseDuration too; UnknownKeysError lists
+  an unknown table with every key beneath it.
+
 ## [0.1.0] - 2026-11-03
 
 ### Added
