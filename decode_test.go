@@ -584,3 +584,19 @@ func TestDecodeFile(t *testing.T) {
 		t.Errorf("oversized file: %v", err)
 	}
 }
+
+// The reference promises MetaData alongside a DecodeError or an
+// UnknownKeysError — a tool can still say where its settings came from —
+// and none when the document did not parse.
+func TestMetaDataComesBackWithDecodeErrors(t *testing.T) {
+	var s struct{ Port int }
+	if md, err := Decode("Port = 'x'\nother = 1\n", &s); err == nil || !md.IsDefined("other") {
+		t.Errorf("with a DecodeError: err=%v, IsDefined(other)=%v", err, md.IsDefined("other"))
+	}
+	if md, err := Decode("Port = 1\nother = 1\n", &s); err == nil || !md.IsDefined("other") {
+		t.Errorf("with an UnknownKeysError: err=%v, IsDefined(other)=%v", err, md.IsDefined("other"))
+	}
+	if md, err := Decode("Port = \n", &s); err == nil || md.IsDefined("Port") {
+		t.Errorf("with a ParseError: err=%v, IsDefined(Port)=%v", err, md.IsDefined("Port"))
+	}
+}
