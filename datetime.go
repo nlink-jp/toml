@@ -30,10 +30,13 @@ type LocalDateTime struct {
 	Time LocalTime
 }
 
+// String writes the date as TOML does: 1979-05-27.
 func (d LocalDate) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.Year, int(d.Month), d.Day)
 }
 
+// String writes the time as TOML does: 07:32:00, with a fraction only when
+// there is one.
 func (t LocalTime) String() string {
 	s := fmt.Sprintf("%02d:%02d:%02d", t.Hour, t.Minute, t.Second)
 	if t.Nanosecond != 0 {
@@ -42,6 +45,7 @@ func (t LocalTime) String() string {
 	return s
 }
 
+// String writes the date-time as TOML does: 1979-05-27T07:32:00.
 func (dt LocalDateTime) String() string { return dt.Date.String() + "T" + dt.Time.String() }
 
 // In is the instant this date-time names in loc. A leap second becomes the

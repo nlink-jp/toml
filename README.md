@@ -39,9 +39,11 @@ if md.IsDefined("model", "name") {
 | `Unmarshaler` | `UnmarshalTOML(any) error`, for a key whose value may take more than one shape. |
 | `ParseError`, `DecodeError`, `UnknownKeysError`, `Key` | The three errors, all reachable with `errors.As`. |
 
-The rules — which TOML value fits which Go type, how struct fields match
-keys, and where this differs from `BurntSushi/toml` — are in
-[docs/en/decoding.md](docs/en/decoding.md).
+Every exported name, with examples, is described in the
+[reference manual](docs/en/reference.md); runnable examples are in
+`example_test.go` (and on pkg.go.dev). The rules — which TOML value fits which
+Go type, how struct fields match keys, and where this differs from
+`BurntSushi/toml` — are in [docs/en/decoding.md](docs/en/decoding.md).
 
 ## What it reads
 

@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Option changes how a document is decoded.
+// Option changes how a document is decoded. AllowUnknownKeys is the only one.
 type Option func(*config)
 
 type config struct {

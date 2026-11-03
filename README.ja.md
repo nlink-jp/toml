@@ -39,6 +39,8 @@ if md.IsDefined("model", "name") {
 | `Unmarshaler` | `UnmarshalTOML(any) error`。値の形が一つに決まらないキーのためのもの。 |
 | `ParseError`、`DecodeError`、`UnknownKeysError`、`Key` | 3 種類のエラー。どれも `errors.As` で取り出せる。 |
 
+公開されている名前はすべて、使用例と一緒に[リファレンスマニュアル](docs/ja/reference.ja.md)で説明しています。
+実行できる使用例は `example_test.go` にあり、pkg.go.dev でも読めます。
 どの TOML の値がどの Go の型に入るか、構造体のフィールドとキーをどう対応させるか、`BurntSushi/toml` とどこが違うかは、
 [docs/ja/decoding.ja.md](docs/ja/decoding.ja.md) にまとめています。
 

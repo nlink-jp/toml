@@ -12,7 +12,10 @@ Status: v0.1.0 released. The parser passes all 681 toml-test documents for
 a few consumers have migrated and the API has settled (RFP §4); each
 consumer's migration is that consumer's own change (organization ADR-025 §6).
 The decoding rules are `docs/en/decoding.md` — keep it in step with
-`decode.go` and `fields.go`.
+`decode.go` and `fields.go`. Every exported name is described in
+`docs/{en,ja}/reference*.md`; `TestTheReferenceNamesEveryExportedName` fails
+when a name has no section, but the text of a section is kept true by hand —
+change it in the same commit as the behaviour.
 
 ## Build & Test
 
@@ -37,13 +40,16 @@ toml/
 ├── scalar.go            # strings, escapes, numbers, datetimes
 ├── errors.go            # ParseError, DecodeError, UnknownKeysError, Key; offset → line/column
 ├── decode_test.go       # every decoding rule
+├── example_test.go      # runnable examples (package toml_test), shown on pkg.go.dev
+├── reference_test.go    # every exported name has a section in both reference manuals
+├── rules_test.go        # rules the Phase 2 review removed without a failing test
 ├── compat_test.go       # the consumers' patterns (pcap-analyzer, task-clock, lagent, voice-studio)
 ├── conformance_test.go  # toml-test harness (our own) + TestTheConformanceDataIsUnchanged
 ├── parse_test.go        # decisions the suite does not cover, limits, positions
 ├── fuzz_test.go         # FuzzParse and FuzzDecode, seeded with the suite
 ├── module_test.go       # TestTheModuleRequiresNothing
 ├── testdata/toml-test/  # vendored toml-test v2.2.0 data; SOURCE.md, SHA256SUMS
-└── docs/{en,ja}/        # RFP, decoding rules
+└── docs/{en,ja}/        # RFP, decoding rules, reference manual
 ```
 
 ## Gotchas
