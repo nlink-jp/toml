@@ -6,9 +6,6 @@ A Go library, standard library only. It reads TOML documents into Go values
 and is **strict by default**: a key the target has no place for is an error,
 not silently dropped. It decodes only; there is no encoder.
 
-> **Status: in development, not yet released.** See the
-> [RFP](docs/en/toml-rfp.md).
-
 ## Install
 
 ```bash

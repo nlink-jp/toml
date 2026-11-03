@@ -7,9 +7,10 @@ only. Replaces `github.com/BurntSushi/toml` across nlink-jp's Go tools. Strict
 by default (unknown keys are an error), decode only. Module path:
 `github.com/nlink-jp/toml`.
 
-Status: Phases 1 and 2 done — the parser passes all 681 toml-test documents
-for 1.1.0, and Decode/DecodeFile map the tree onto Go values. Phase 3
-(ADR, release, migration of consumers) is next; see `docs/ja/toml-rfp.ja.md` §4.
+Status: v0.1.0 released. The parser passes all 681 toml-test documents for
+1.1.0, and Decode/DecodeFile map the tree onto Go values. v1.0.0 follows once
+a few consumers have migrated and the API has settled (RFP §4); each
+consumer's migration is that consumer's own change (organization ADR-025 §6).
 The decoding rules are `docs/en/decoding.md` — keep it in step with
 `decode.go` and `fields.go`.
 
