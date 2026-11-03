@@ -57,15 +57,27 @@ toml/
   replaced. Consumers rely on it (defaults first, file second), and
   `TestMapEntriesAreDecodedOnTopOfTheirDefaults` exists because a mutation
   that dropped the old map entry passed every other test.
-- **The order of checks in `decoder.value` matters:** pointers, then
-  `Unmarshaler`, then `any`, then the datetime types, then
-  `TextUnmarshaler`. `time.Time` is itself a `TextUnmarshaler`, so the
-  datetime case must come first.
+- **The order of checks in `decoder.value` matters:** pointers (at most 64
+  deep, for `type P *P`), then `Unmarshaler`, then `any`, then the datetime
+  types and `time.Duration` (an `int64` kind, so it must come before the
+  integer case for strings), then `TextUnmarshaler`. `time.Time` is itself a
+  `TextUnmarshaler`, so the datetime case must come first.
 - **`Unmarshaler` was added in Phase 2, beyond the RFP's API,** because
   task-clock's `CommandValue` implements `UnmarshalTOML(any)`.
 - **Unknown keys are collected, not failed on,** so one error lists them all,
-  in document order, after every known key is decoded. A `DecodeError` stops
-  decoding at once.
+  in document order, after every known key is decoded. An unknown table is
+  listed with every key beneath it (`unknownTree`): video-studio-mcp and
+  voice-studio-mcp find `workspace.workspace_dir` by name after `[workspace]`
+  was removed. A `DecodeError` stops decoding at once.
+- **Two keys that fold to one field are a `DecodeError`** (`setBy` in
+  `structTable`); letting the later win dropped a value silently.
+- **Every rule has a test that fails without it.** `rules_test.go` holds the
+  ones the Phase 2 review removed unnoticed (13 mutations); when adding a
+  rule, check that removing it fails a test.
+- **What the migration needs is in docs/en/decoding.md, "Where this differs".**
+  The Phase 2 review built every consumer against this library: about nine
+  build their own unknown-key messages and need an `errors.As` rewrite, and
+  seven have tests that compare BurntSushi's wording.
 - **The table rules live in `tableState`.** implicit (a header's parent) →
   may still be defined by a header or by dotted keys; header → closed to
   headers and dotted keys; dotted → open only to dotted keys of the same

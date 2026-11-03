@@ -27,4 +27,11 @@ to [Semantic Versioning](https://semver.org/).
   targets.
 - `DecodeError` and `UnknownKeysError`, with `Key`.
 - Decoding rules documented in `docs/en/decoding.md` and
-  `docs/ja/decoding.ja.md`.
+  `docs/ja/decoding.ja.md`, with every difference from BurntSushi/toml.
+- An unknown table is reported with every key beneath it, so a removed key
+  can still be found by its full name.
+- Two keys that differ only in case and reach one field are a `DecodeError`.
+- `time.Duration` reads strings such as `"1m30s"`.
+- Decode messages stay small: keys and the errors of a target's own methods
+  are clipped. A `time.Time` read from a string keeps its offset unnamed.
+  A pointer type that points to itself is an error, not an endless loop.

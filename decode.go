@@ -41,7 +41,8 @@ type MetaData struct {
 
 // IsDefined reports whether the document wrote the key: a value, or a table
 // whether written by a header, by dotted keys or implied by a deeper header.
-// A key inside an array of tables is not reached; nor is the empty key.
+// A key inside an array of tables is not reached. No key parts at all is
+// false; one empty part is the key "" and is true when the document wrote it.
 func (md MetaData) IsDefined(key ...string) bool {
 	if md.root == nil || len(key) == 0 {
 		return false

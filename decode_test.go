@@ -288,6 +288,10 @@ func TestIsDefined(t *testing.T) {
 	if (MetaData{}).IsDefined("a") {
 		t.Error("the zero MetaData defines nothing")
 	}
+	md = mustDecode(t, "\"\" = 1\n", &cfg)
+	if !md.IsDefined("") {
+		t.Error(`IsDefined("") is false for a document that wrote "" = 1`)
+	}
 }
 
 func TestNumbersMustFit(t *testing.T) {
