@@ -6,10 +6,12 @@ import (
 )
 
 const (
-	// maxInputBytes bounds the document. Configuration files are a few
-	// kilobytes; the bound only stops a mistaken path (a log, a disk image)
-	// from being read into memory whole.
-	maxInputBytes = 16 << 20
+	// maxInputBytes bounds the document, and with it the tree: a node costs
+	// far more than the bytes that wrote it, so a document of tiny values
+	// builds a tree about 85 times its size (measured: 16 MiB of `0,` in one
+	// array built 1.3 GiB). Configuration files are a few kilobytes; 1 MiB
+	// keeps the worst case under 100 MiB.
+	maxInputBytes = 1 << 20
 	// maxDepth bounds how deep tables and arrays nest. Decoding walks the
 	// tree recursively, so an unbounded depth (`a.a.a.…` repeated a million
 	// times) would exhaust the stack — a crash, not an error. toml-test
@@ -34,7 +36,7 @@ type parser struct {
 // parse reads a whole document into a tree.
 func parse(src string) (root *table, err error) {
 	if len(src) > maxInputBytes {
-		return nil, &ParseError{Line: 1, Column: 1, Msg: "document is larger than 16 MiB"}
+		return nil, &ParseError{Line: 1, Column: 1, Msg: "document is larger than 1 MiB"}
 	}
 	if !utf8.ValidString(src) {
 		return nil, newParseError(src, firstInvalidUTF8(src), "document is not valid UTF-8")
@@ -109,8 +111,8 @@ func hex4(r rune) string {
 }
 
 func (p *parser) document() {
-	if p.at("\xEF\xBB\xBF") {
-		p.pos += len("\xEF\xBB\xBF")
+	if p.at(bom) {
+		p.pos += len(bom)
 	}
 	for {
 		p.skipWS()
@@ -520,25 +522,31 @@ func seal(t *table, section int) {
 	}
 }
 
-// tooDeep walks the finished tree without recursion and reports the first
-// node that nests deeper than maxDepth. Header keys and dotted keys add depth
-// one part at a time, so only the finished tree knows the real depth.
+// tooDeep walks the finished tree without recursion and reports the earliest
+// position, in the document, of a node that nests deeper than maxDepth.
+// Header keys and dotted keys add depth one part at a time, so only the
+// finished tree knows the real depth. Every too-deep node is looked at, not
+// the first one met, so the same document always names the same place.
 func tooDeep(root *table) (int, bool) {
 	type item struct {
 		n     *node
 		depth int
 	}
+	first, found := 0, false
 	stack := []item{{&node{kind: kTable, tbl: root}, 0}}
 	for len(stack) > 0 {
 		it := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 		if it.depth > maxDepth {
-			return it.n.off, true
+			if !found || it.n.off < first {
+				first, found = it.n.off, true
+			}
+			continue
 		}
 		switch it.n.kind {
 		case kTable:
-			for _, child := range it.n.tbl.entries {
-				stack = append(stack, item{child, it.depth + 1})
+			for _, k := range it.n.tbl.keys {
+				stack = append(stack, item{it.n.tbl.entries[k], it.depth + 1})
 			}
 		case kArray:
 			for _, child := range it.n.arr {
@@ -546,5 +554,5 @@ func tooDeep(root *table) (int, bool) {
 			}
 		}
 	}
-	return 0, false
+	return first, found
 }

@@ -114,6 +114,11 @@ func TestALeadingByteOrderMarkIsSkipped(t *testing.T) {
 	if lookup(t, root, "a").i != 1 {
 		t.Error("a != 1")
 	}
+	// Nor is it a character of the first line when an error is placed.
+	with, without := parseErr(t, "\xEF\xBB\xBFa = 1 x\n"), parseErr(t, "a = 1 x\n")
+	if with.Column != without.Column {
+		t.Errorf("column with a BOM %d, without %d", with.Column, without.Column)
+	}
 }
 
 func TestMultilineStringsTurnCRLFIntoLF(t *testing.T) {
@@ -181,9 +186,23 @@ func TestDepthIsBounded(t *testing.T) {
 	}
 }
 
+// The tree is walked through maps; the reported place must not depend on
+// the order a map happens to yield. Three lines nest too deep, and the
+// first of them is the one named, every time.
+func TestTheDepthErrorNamesTheFirstPlaceEveryTime(t *testing.T) {
+	half := strings.Repeat("a.", 69) + "a"
+	src := "[" + strings.Repeat("h.", 69) + "h]\nx." + half + " = 1\ny." + half + " = 1\nz." + half + " = 1\n"
+	for i := 0; i < 50; i++ {
+		if pe := parseErr(t, src); pe.Line != 2 {
+			t.Fatalf("run %d: line %d, want 2 (%v)", i, pe.Line, pe)
+		}
+	}
+}
+
 func TestTheDocumentSizeIsBounded(t *testing.T) {
+	mustParse(t, strings.Repeat("#", maxInputBytes))
 	pe := parseErr(t, strings.Repeat("#", maxInputBytes+1))
-	if !strings.Contains(pe.Msg, "16 MiB") {
+	if !strings.Contains(pe.Msg, "1 MiB") {
 		t.Errorf("%v", pe)
 	}
 }
