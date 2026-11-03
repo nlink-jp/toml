@@ -464,7 +464,9 @@ func (p *parser) datetime(start int, tok string) *node {
 	if n.dt.minute > 59 {
 		bad("minute out of range")
 	}
-	if n.dt.second > 59 {
+	// 60 is a leap second, which RFC 3339 and TOML's grammar allow. What it
+	// becomes as a Go value is the decoder's business, not the parser's.
+	if n.dt.second > 60 {
 		bad("second out of range")
 	}
 

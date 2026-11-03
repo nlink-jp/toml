@@ -187,7 +187,7 @@ func TestValuesOutOfRangeAreErrors(t *testing.T) {
 		"a = 0x8000000000000000\n",
 		"a = 1e400\n",
 		"a = 1979-02-29\n",          // not a leap year
-		"a = 1979-05-27T07:32:60\n", // leap seconds are not read
+		"a = 1979-05-27T07:32:61\n", // past a leap second
 		"a = \"\\uD800\"\n",         // a surrogate is not a scalar value
 	} {
 		parseErr(t, src)
@@ -195,6 +195,16 @@ func TestValuesOutOfRangeAreErrors(t *testing.T) {
 	root := mustParse(t, "a = 9223372036854775807\nb = -9223372036854775808\nc = 2000-02-29\n")
 	if lookup(t, root, "b").i != -9223372036854775808 {
 		t.Error("b is not the smallest int64")
+	}
+}
+
+// RFC 3339 allows a leap second, and TOML's datetimes are RFC 3339's.
+func TestLeapSecondsAreRead(t *testing.T) {
+	root := mustParse(t, "a = 2016-12-31T23:59:60Z\nb = 23:59:60\nc = 2016-12-31 23:59:60.5\n")
+	for _, k := range []string{"a", "b", "c"} {
+		if s := lookup(t, root, k).dt.second; s != 60 {
+			t.Errorf("%s: second = %d, want 60", k, s)
+		}
 	}
 }
 
