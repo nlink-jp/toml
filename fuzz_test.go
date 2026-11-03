@@ -38,24 +38,35 @@ func FuzzDecode(f *testing.F) {
 	addSuiteSeeds(f)
 	f.Add("a = 1\n[b]\nc = 'x'\n[[d]]\ne = 1979-05-27T07:32:00Z\n")
 	f.Add("S = 's'\nI = -1\nU = 1\nF = 1.5\nB = true\nT = 07:32\nL = [1, 2]\nM = {k = 'v'}\nP = 1\n")
+	f.Add("Level = 'debug'\nCmd = ['a', 'b']\nDur = '1m'\nLDT = 1979-05-27T07:32\nLD = 1979-05-27\n" +
+		"Embedded = 'e'\n[Servers.main]\nHost = 'h'\n[[Q]]\nZ = 'z'\n")
+	type Base struct{ Embedded string }
+	type server struct{ Host, Port string }
 	type fuzzTarget struct {
-		S  string
-		I  int8
-		U  uint16
-		F  float32
-		B  bool
-		T  time.Time
-		LT LocalTime
-		L  []int
-		A  [2]string
-		M  map[string]any
-		P  *int
-		N  struct{ X, Y int }
-		Q  []struct{ Z string }
+		*Base
+		S       string
+		I       int8
+		U       uint16
+		F       float32
+		B       bool
+		T       time.Time
+		LT      LocalTime
+		LDT     LocalDateTime
+		LD      LocalDate
+		Dur     time.Duration
+		Level   level
+		Cmd     commandValue
+		L       []int
+		A       [2]string
+		M       map[string]any
+		Servers map[string]server
+		P       *int
+		N       struct{ X, Y int }
+		Q       []struct{ Z string }
 	}
 	f.Fuzz(func(t *testing.T, src string) {
 		var anyV any
-		var st fuzzTarget
+		st := fuzzTarget{Servers: map[string]server{"main": {Port: "80"}}}
 		for _, v := range []any{&anyV, &st} {
 			_, err := Decode(src, v)
 			if err == nil {
