@@ -28,7 +28,7 @@ func (p *parser) basicString() string {
 			return b.String()
 		case c == '\\':
 			p.escape(&b)
-		case c == '\n' || c == '\r':
+		case c == '\n' || p.at("\r\n"):
 			p.fail("a newline is not allowed in a single-line string")
 		case controlIn(c):
 			p.fail("%s must be escaped in a string", p.describe())
@@ -85,7 +85,7 @@ func (p *parser) literalString() string {
 		case c == '\'':
 			p.pos++
 			return p.src[start : p.pos-1]
-		case c == '\n' || c == '\r':
+		case c == '\n' || p.at("\r\n"):
 			p.fail("a newline is not allowed in a single-line string")
 		case controlIn(c):
 			p.fail("%s is not allowed in a literal string", p.describe())
@@ -219,7 +219,11 @@ func (p *parser) escape(b *strings.Builder) {
 		b.WriteRune(p.hexEscape(start, 8))
 	default:
 		p.pos--
-		p.failAt(start, "invalid escape sequence \\%s", p.describe())
+		r, _ := utf8.DecodeRuneInString(p.src[p.pos:])
+		if controlIn(c) || c == ' ' || c == '\n' {
+			p.failAt(start, "a backslash must start an escape sequence, found %s after it", p.describe())
+		}
+		p.failAt(start, "invalid escape sequence \"\\%c\"", r)
 	}
 }
 
@@ -278,7 +282,7 @@ func isDate(s string) bool {
 
 func (p *parser) number(start int, tok string) *node {
 	n := &node{off: start}
-	bad := func() { p.failAt(start, "invalid number %q", tok) }
+	bad := func() { p.failAt(start, "invalid number %q", clip(tok)) }
 
 	sign, rest := "", tok
 	if rest != "" && (rest[0] == '+' || rest[0] == '-') {
@@ -307,7 +311,7 @@ func (p *parser) number(start int, tok string) *node {
 		}
 		v, err := strconv.ParseUint(strings.ReplaceAll(digits, "_", ""), base, 64)
 		if err != nil || v > math.MaxInt64 {
-			p.failAt(start, "integer %s does not fit in 64 bits", tok)
+			p.failAt(start, "integer %s does not fit in 64 bits", clip(tok))
 		}
 		n.kind, n.i = kInteger, int64(v)
 		return n
@@ -319,7 +323,7 @@ func (p *parser) number(start int, tok string) *node {
 		}
 		v, err := strconv.ParseInt(sign+strings.ReplaceAll(rest, "_", ""), 10, 64)
 		if err != nil {
-			p.failAt(start, "integer %s does not fit in 64 bits", tok)
+			p.failAt(start, "integer %s does not fit in 64 bits", clip(tok))
 		}
 		n.kind, n.i = kInteger, v
 		return n
@@ -350,7 +354,7 @@ func (p *parser) number(start int, tok string) *node {
 	}
 	v, err := strconv.ParseFloat(strings.ReplaceAll(sign+rest, "_", ""), 64)
 	if err != nil && math.IsInf(v, 0) {
-		p.failAt(start, "float %s is out of range", tok)
+		p.failAt(start, "float %s is out of range", clip(tok))
 	} else if err != nil {
 		bad()
 	}
@@ -401,7 +405,7 @@ func decimalInt(s string) bool {
 // datetime reads the four datetime kinds. TOML 1.1 lets the seconds be
 // omitted; fractions beyond nanoseconds are truncated, not rounded.
 func (p *parser) datetime(start int, tok string) *node {
-	bad := func(why string) { p.failAt(start, "invalid datetime %q: %s", tok, why) }
+	bad := func(why string) { p.failAt(start, "invalid datetime %q: %s", clip(tok), why) }
 	n := &node{off: start}
 	s := tok
 

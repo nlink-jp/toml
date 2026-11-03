@@ -27,8 +27,9 @@ type parser struct {
 	src         string
 	pos         int
 	root        *table
-	cur         *table // the table key/value pairs are written into
-	section     int    // the current header's section
+	cur         *table    // the table key/value pairs are written into
+	path        []keyPart // cur's key from the root, for error messages
+	section     int       // the current header's section
 	nextSection int
 	depth       int // nesting of arrays and inline tables being read
 }
@@ -128,7 +129,7 @@ func (p *parser) document() {
 			p.header()
 			p.endOfLine()
 		default:
-			p.keyval(p.cur, p.section)
+			p.keyval(p.cur, p.section, p.path)
 			p.endOfLine()
 		}
 	}
@@ -250,7 +251,9 @@ func (p *parser) key() []keyPart {
 
 // keyval reads `key = value` and writes it into t. section is the header (or
 // inline table) the pair belongs to, which decides what dotted keys may reach.
-func (p *parser) keyval(t *table, section int) {
+// prefix is t's key, so that messages name keys in full; inside an inline
+// table it is empty and keys are named from that table.
+func (p *parser) keyval(t *table, section int, prefix []keyPart) {
 	parts := p.key()
 	if p.peek() != '=' {
 		p.fail("expected '=' after the key, found %s", p.describe())
@@ -258,12 +261,13 @@ func (p *parser) keyval(t *table, section int) {
 	p.pos++
 	p.skipWS()
 	v := p.value()
-	p.assign(t, section, parts, v)
+	p.assign(t, section, prefix, parts, v)
 }
 
 // assign writes v under a dotted key, creating the tables the key's leading
 // parts name.
-func (p *parser) assign(t *table, section int, parts []keyPart, v *node) {
+func (p *parser) assign(t *table, section int, prefix, parts []keyPart, v *node) {
+	name := func(n int) string { return dotted(prefix, parts[:n]) }
 	for i, part := range parts[:len(parts)-1] {
 		n, ok := t.entries[part.name]
 		if !ok {
@@ -273,45 +277,51 @@ func (p *parser) assign(t *table, section int, parts []keyPart, v *node) {
 			continue
 		}
 		if n.kind != kTable {
-			p.failAt(part.off, "key %s is already a %s, not a table", dotted(parts[:i+1]), n.describe())
+			p.failAt(part.off, "key %s is already %s, not a table", name(i+1), n.describe())
 		}
 		switch n.tbl.state {
 		case implicitTable:
 			n.tbl.state, n.tbl.section = dottedTable, section
 		case dottedTable:
 			if n.tbl.section != section {
-				p.failAt(part.off, "table %s was defined by dotted keys in another section; it cannot be added to here", dotted(parts[:i+1]))
+				p.failAt(part.off, "table %s was defined by dotted keys under another header; it cannot be added to here", name(i+1))
 			}
 		case headerTable:
-			p.failAt(part.off, "table %s is defined by a header; dotted keys cannot add to it", dotted(parts[:i+1]))
+			p.failAt(part.off, "table %s is defined by a header; dotted keys cannot add to it", name(i+1))
 		case inlineTable:
-			p.failAt(part.off, "table %s is an inline table; nothing can be added to it", dotted(parts[:i+1]))
+			p.failAt(part.off, "table %s is an inline table; nothing can be added to it", name(i+1))
 		}
 		t = n.tbl
 	}
 	last := parts[len(parts)-1]
 	if _, ok := t.entries[last.name]; ok {
-		p.failAt(last.off, "key %s is defined twice", dotted(parts))
+		p.failAt(last.off, "key %s is defined twice", name(len(parts)))
 	}
 	v.off = last.off
 	t.set(last.name, v)
 }
 
+// describe names what a node is, with its article, for error messages.
 func (n *node) describe() string {
 	switch {
 	case n.kind == kArray && n.aot:
-		return "array of tables"
+		return "an array of tables"
 	case n.kind == kTable && n.tbl.state == inlineTable:
-		return "inline table"
+		return "an inline table"
+	case n.kind == kInteger || n.kind == kArray:
+		return "an " + n.kind.String()
 	default:
-		return n.kind.String()
+		return "a " + n.kind.String()
 	}
 }
 
-func dotted(parts []keyPart) string {
-	names := make([]string, len(parts))
-	for i, part := range parts {
-		names[i] = quoteKey(part.name)
+// dotted writes a key from its parts the way TOML would spell it.
+func dotted(groups ...[]keyPart) string {
+	var names []string
+	for _, parts := range groups {
+		for _, part := range parts {
+			names = append(names, quoteKey(clip(part.name)))
+		}
 	}
 	return strings.Join(names, ".")
 }
@@ -369,7 +379,7 @@ func (p *parser) header() {
 		case n.kind == kArray && n.aot:
 			t = n.arr[len(n.arr)-1].tbl
 		default:
-			p.failAt(part.off, "key %s is already a %s, not a table", dotted(parts[:i+1]), n.describe())
+			p.failAt(part.off, "key %s is already %s, not a table", dotted(parts[:i+1]), n.describe())
 		}
 	}
 
@@ -384,7 +394,7 @@ func (p *parser) header() {
 		case n.kind == kArray && n.aot:
 			n.arr = append(n.arr, &node{kind: kTable, off: last.off, tbl: elem})
 		default:
-			p.failAt(last.off, "key %s is already a %s, not an array of tables", dotted(parts), n.describe())
+			p.failAt(last.off, "key %s is already %s, not an array of tables", dotted(parts), n.describe())
 		}
 		p.cur = elem
 	} else {
@@ -399,9 +409,10 @@ func (p *parser) header() {
 		case n.kind == kTable:
 			p.failAt(last.off, "table %s is defined twice", dotted(parts))
 		default:
-			p.failAt(last.off, "key %s is already a %s, not a table", dotted(parts), n.describe())
+			p.failAt(last.off, "key %s is already %s, not a table", dotted(parts), n.describe())
 		}
 	}
+	p.path = parts
 	p.section = p.nextSection
 	p.nextSection++
 }
@@ -496,7 +507,7 @@ func (p *parser) inlineTable() *node {
 			p.pos++
 			break
 		}
-		p.keyval(t, section)
+		p.keyval(t, section, nil)
 		p.skipBlank()
 		if p.peek() == ',' {
 			p.pos++

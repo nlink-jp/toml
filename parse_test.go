@@ -102,6 +102,36 @@ func TestErrorsNameTheLineAndTheCharacterColumn(t *testing.T) {
 	}
 }
 
+func TestMessagesNameWhatWentWrong(t *testing.T) {
+	for src, want := range map[string]string{
+		// Keys are named from the root, not from the current header.
+		"[a.b.c]\nz = 9\n[a]\nb.c.t = 1\n": "table a.b.c is defined by a header",
+		"[x]\na = 1\na.b = 2\n":            "key x.a is already an integer, not a table",
+		"a = []\n[[a]]\n":                  "key a is already an array, not an array of tables",
+		"a = {b = 1}\na.b.c = 2\n":         "table a is an inline table",
+		"a = \"\\a\"\n":                    `invalid escape sequence "\a"`,
+		"a = \"x\ry\"\n":                   "control character U+000D must be escaped",
+		"a = 'x\r\ny'\n":                   "a newline is not allowed in a single-line string",
+	} {
+		if pe := parseErr(t, src); !strings.Contains(pe.Msg, want) {
+			t.Errorf("parse(%q): %q, want it to contain %q", src, pe.Msg, want)
+		}
+	}
+}
+
+// The document is quoted in messages, never copied into them whole.
+func TestMessagesStaySmall(t *testing.T) {
+	for _, src := range []string{
+		"a = " + strings.Repeat("9", 100000) + "\n",
+		"a = 1979-05-27T" + strings.Repeat("0", 100000) + "\n",
+		"\"" + strings.Repeat("k", 100000) + "\" = 1\n\"" + strings.Repeat("k", 100000) + "\" = 2\n",
+	} {
+		if pe := parseErr(t, src); len(pe.Error()) > 200 {
+			t.Errorf("message of %d bytes: %.80s…", len(pe.Error()), pe.Error())
+		}
+	}
+}
+
 func TestInvalidUTF8IsReportedWhereItIs(t *testing.T) {
 	pe := parseErr(t, "a = 1\nb = \"\xff\"\n")
 	if pe.Line != 2 || pe.Column != 6 {
