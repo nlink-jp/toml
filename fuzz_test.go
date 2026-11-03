@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // FuzzParse holds the parser to two properties on any input: it never
@@ -43,6 +44,14 @@ func FuzzParse(f *testing.F) {
 		}
 		if pe.Line < 1 || pe.Column < 1 || pe.Msg == "" {
 			t.Fatalf("error without a position or message: %+v", pe)
+		}
+		// The position is inside the document, or just past its end.
+		lines := strings.Split(src, "\n")
+		if pe.Line > len(lines) {
+			t.Fatalf("line %d of a %d-line document", pe.Line, len(lines))
+		}
+		if max := utf8.RuneCountInString(lines[pe.Line-1]) + 1; pe.Column > max {
+			t.Fatalf("column %d of a %d-character line %d", pe.Column, max-1, pe.Line)
 		}
 	})
 }

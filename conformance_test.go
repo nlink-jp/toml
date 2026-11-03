@@ -269,6 +269,38 @@ func sameTagged(want, have any, path string) string {
 	return fmt.Sprintf("%s: unexpected expected value %v", path, want)
 }
 
+// The comparison is itself a test subject: one that equated too much would
+// let wrong values through the whole suite.
+func TestTheComparisonTellsValuesApart(t *testing.T) {
+	differ := [][4]string{
+		{"datetime", "1979-05-27T07:32:00Z", "datetime", "1979-05-27T00:32:00-07:00"},
+		{"datetime", "1979-05-27T07:32:00+09:00", "datetime", "1979-05-26T22:32:00Z"},
+		{"datetime-local", "1979-05-27T07:32:00", "datetime-local", "1979-05-27T07:32:01"},
+		{"float", "0.0", "float", "-0.0"},
+		{"float", "nan", "float", "inf"},
+		{"integer", "1", "integer", "2"},
+		{"integer", "1", "float", "1"},
+		{"string", "a", "string", "a "},
+	}
+	for _, c := range differ {
+		if sameValue(c[0], c[1], c[2], c[3], "k") == "" {
+			t.Errorf("%s %q and %s %q compare equal", c[0], c[1], c[2], c[3])
+		}
+	}
+	same := [][4]string{
+		{"datetime", "1979-05-27T07:32:00Z", "datetime", "1979-05-27 07:32:00z"},
+		{"datetime", "1979-05-27T07:32:00Z", "datetime", "1979-05-27T07:32:00+00:00"},
+		{"float", "1e2", "float", "100"},
+		{"float", "-nan", "float", "nan"},
+		{"time-local", "07:32:00.5", "time-local", "07:32:00.500"},
+	}
+	for _, c := range same {
+		if msg := sameValue(c[0], c[1], c[2], c[3], "k"); msg != "" {
+			t.Errorf("%s", msg)
+		}
+	}
+}
+
 func isTaggedValue(m map[string]any) bool {
 	if len(m) != 2 {
 		return false
@@ -318,6 +350,14 @@ func sameValue(wantType, want, haveType, have, path string) string {
 		wt, err1 := time.Parse(layout, norm.Replace(want))
 		ht, err2 := time.Parse(layout, norm.Replace(have))
 		if err1 != nil || err2 != nil || !wt.Equal(ht) {
+			return mismatch
+		}
+		// The same instant is not enough: the offset as written is part
+		// of the value, and a parser that turned every offset into Z
+		// would otherwise pass.
+		_, wo := wt.Zone()
+		_, ho := ht.Zone()
+		if wo != ho {
 			return mismatch
 		}
 	default:
