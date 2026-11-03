@@ -2,6 +2,7 @@ package toml
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"math"
 	"os"
@@ -471,6 +472,72 @@ func TestGoArrays(t *testing.T) {
 		t.Errorf("A = %v", cfg.A)
 	}
 	decodeErr(t, "A = [1, 2, 3, 4]\n", &cfg)
+}
+
+// Messages quote the document and the errors of a target's own methods, and
+// stay small whatever those hold.
+func TestDecodeMessagesStaySmall(t *testing.T) {
+	long := strings.Repeat("k", 100000)
+	var m map[string]int
+	var tt struct{ T time.Time }
+	var lv struct{ Level level }
+	for _, c := range []struct {
+		src string
+		v   any
+	}{
+		{`"` + long + `" = 'x'`, &m},
+		{`T = "` + long + `"`, &tt},
+		{`Level = "` + long + `"`, &lv},
+	} {
+		_, err := Decode(c.src, c.v)
+		if err == nil || len(err.Error()) > 300 {
+			t.Errorf("%T: %d-byte message", c.v, len(fmt.Sprint(err)))
+		}
+	}
+	var s struct{}
+	_, err := Decode(`"`+long+`" = 1`, &s)
+	if err == nil || len(err.Error()) > 100 {
+		t.Errorf("unknown key: %d-byte message", len(fmt.Sprint(err)))
+	}
+}
+
+// A string decoded into time.Time keeps the offset as written, unnamed, as a
+// TOML datetime does — not the name of the machine's zone.
+func TestTimeFromAStringKeepsAnUnnamedOffset(t *testing.T) {
+	saved := time.Local
+	time.Local = time.FixedZone("JST", 9*3600)
+	defer func() { time.Local = saved }()
+	var cfg struct{ A, B time.Time }
+	mustDecode(t, "A = '1979-05-27T07:32:00+09:00'\nB = 1979-05-27T07:32:00+09:00\n", &cfg)
+	an, ao := cfg.A.Zone()
+	bn, bo := cfg.B.Zone()
+	if an != bn || ao != bo || an != "" {
+		t.Errorf("from a string %q %d, from a datetime %q %d", an, ao, bn, bo)
+	}
+}
+
+type selfPointer *selfPointer
+
+func TestSelfReferentialPointersEnd(t *testing.T) {
+	var cfg struct{ P selfPointer }
+	done := make(chan error, 1)
+	go func() { _, err := Decode("P = 1\n", &cfg); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "pointers do not end") {
+			t.Errorf("err = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("decoding into type P *P did not end")
+	}
+}
+
+func TestTheRootIsNamedWithoutAKey(t *testing.T) {
+	var n int
+	err := decodeErr(t, "a = 1\n", &n)
+	if err.Error() != "toml: line 1: cannot decode a table into int" {
+		t.Errorf("Error() = %q", err.Error())
+	}
 }
 
 func TestDecodeFile(t *testing.T) {

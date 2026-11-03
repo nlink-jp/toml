@@ -35,6 +35,15 @@ func (k Key) child(name string) Key {
 	return append(k[:len(k):len(k)], name)
 }
 
+// clipped is String with each part clipped, for messages.
+func (k Key) clipped() string {
+	parts := make([]string, len(k))
+	for i, p := range k {
+		parts[i] = quoteKey(clip(p))
+	}
+	return strings.Join(parts, ".")
+}
+
 // DecodeError is a valid document whose value at Key does not fit the Go
 // value it is decoded into: the wrong type, a number out of range, or an
 // error from an UnmarshalText method (which errors.Unwrap returns).
@@ -46,7 +55,10 @@ type DecodeError struct {
 }
 
 func (e *DecodeError) Error() string {
-	return fmt.Sprintf("toml: line %d: key %s: %s", e.Line, e.Key, e.Msg)
+	if len(e.Key) == 0 { // the document as a whole
+		return fmt.Sprintf("toml: line %d: %s", e.Line, e.Msg)
+	}
+	return fmt.Sprintf("toml: line %d: key %s: %s", e.Line, e.Key.clipped(), e.Msg)
 }
 
 func (e *DecodeError) Unwrap() error { return e.err }
@@ -65,7 +77,7 @@ func (e *UnknownKeysError) Error() string {
 		if i == shown {
 			break
 		}
-		names = append(names, clip(k.String()))
+		names = append(names, k.clipped())
 	}
 	s := "toml: unknown keys: " + strings.Join(names, ", ")
 	if len(e.Keys) > shown {
@@ -101,8 +113,10 @@ const bom = "\xEF\xBB\xBF"
 
 // clip shortens text quoted from the document so that an error message stays
 // readable and small whatever the document holds.
-func clip(s string) string {
-	const max = 40
+func clip(s string) string { return clipTo(s, 40) }
+
+// clipTo keeps the first max characters of s.
+func clipTo(s string, max int) string {
 	if utf8.RuneCountInString(s) <= max {
 		return s
 	}

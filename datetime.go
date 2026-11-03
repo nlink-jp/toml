@@ -62,11 +62,16 @@ func (d datetime) localTime() LocalTime {
 // instant is an offset date-time as a time.Time. A zero offset is UTC; any
 // other keeps the offset as written, unnamed.
 func (d datetime) instant() time.Time {
-	loc := time.UTC
-	if d.offset != 0 {
-		loc = time.FixedZone("", d.offset)
+	return time.Date(d.year, time.Month(d.month), d.day, d.hour, d.minute, d.second, d.nanos, zoneAt(d.offset))
+}
+
+// zoneAt is the location for an offset as written: UTC for zero, otherwise an
+// unnamed fixed zone. Never time.Local's name, which a document cannot mean.
+func zoneAt(offset int) *time.Location {
+	if offset == 0 {
+		return time.UTC
 	}
-	return time.Date(d.year, time.Month(d.month), d.day, d.hour, d.minute, d.second, d.nanos, loc)
+	return time.FixedZone("", offset)
 }
 
 // text is the value as TOML writes it, for a TextUnmarshaler target.

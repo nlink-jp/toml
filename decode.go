@@ -137,9 +137,11 @@ var (
 )
 
 // wrap returns err from a target's own method as a DecodeError that
-// errors.Is and errors.As see through.
+// errors.Is and errors.As see through. Such errors often quote their input
+// (time.ParseDuration does), so the message keeps only its start; the whole
+// error stays reachable through Unwrap.
 func (d *decoder) wrap(n *node, key Key, err error) error {
-	e := d.fail(n, key, "%v", err).(*DecodeError)
+	e := d.fail(n, key, "%s", clipTo(err.Error(), 200)).(*DecodeError)
 	e.err = err
 	return e
 }
@@ -156,8 +158,12 @@ func (d *decoder) mismatch(n *node, key Key, v reflect.Value) error {
 // value decodes n into v, which is settable.
 func (d *decoder) value(n *node, v reflect.Value, key Key) error {
 	// A nil pointer gets a new value; a pointer already set is decoded
-	// through, so what it points to keeps the defaults it holds.
-	for v.Kind() == reflect.Pointer {
+	// through, so what it points to keeps the defaults it holds. A pointer
+	// type can point to itself (`type P *P`), which would never end.
+	for depth := 0; v.Kind() == reflect.Pointer; depth++ {
+		if depth == 64 {
+			return d.fail(n, key, "cannot decode into %s: its pointers do not end", v.Type())
+		}
 		if v.IsNil() {
 			v.Set(reflect.New(v.Type().Elem()))
 		}
@@ -409,7 +415,10 @@ func (d *decoder) datetimeValue(n *node, v reflect.Value, key Key) error {
 		if err != nil {
 			return d.wrap(n, key, err)
 		}
-		v.Set(reflect.ValueOf(t))
+		// time.Parse names the zone after time.Local when the offsets
+		// agree; the value keeps the offset as written, as a datetime does.
+		_, off := t.Zone()
+		v.Set(reflect.ValueOf(t.In(zoneAt(off))))
 	case v.Type() == localDateTimeType && n.kind == kDatetimeLocal:
 		v.Set(reflect.ValueOf(LocalDateTime{n.dt.localDate(), n.dt.localTime()}))
 	case v.Type() == localDateType && n.kind == kDateLocal:
